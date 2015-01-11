@@ -3,10 +3,21 @@
 <head>
 	<meta charset="UTF-8">
 	<title>Live Chat</title>
+	<style>
+	#video
+	{
+	    transform: rotateY(180deg);
+	    -webkit-transform:rotateY(180deg); /* Safari and Chrome */
+	    -moz-transform:rotateY(180deg); /* Firefox */
+	}
+	</style>
 </head>
 <body>
 	<h1>Live Chat</h1>
 	
+	<div>
+		<video id="video" autoplay></video>
+	</div>
 	<div>
 		<input type="text" id="msg" placeholder="say something...">
 	</div>

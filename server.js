@@ -1,7 +1,7 @@
 var http = require('http')
 var ecstatic = require('ecstatic');
-var fs = require('fs')
-var Engine = require('engine.io-stream')
+var fs = require('fs');
+var Engine = require('engine.io-stream');
 
 var httpServer = http.createServer(ecstatic({
 	root: __dirname
@@ -14,7 +14,7 @@ browserify.add('./client.js')
 browserify.bundle().pipe(fs.createWriteStream(__dirname+'/bundle.js'));
 
 var clients = [];
-function broadcast (data, sender) {
+function broadcast (data) {
 	for(var i=0; i < clients.length; i++) {
 		clients[i].write(data);
 	}
@@ -26,7 +26,7 @@ var engine = Engine(function (socket) {
 
 	socket.on('data', function (data) {
 		console.log('client says: ', data);
-		broadcast(data, socket);
+		broadcast(data);
 	})
 
 });
