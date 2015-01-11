@@ -2,11 +2,6 @@ var Engine = require('engine.io-stream');
 var con = Engine('/engine');
 var hat = require('hat');
 
-function UserMedia() {
-	return navigator.getUserMedia || navigator.webkitGetUserMedia ||
-            navigator.mozGetUserMedia || navigator.msGetUserMedia;
-}
-
 document.addEventListener("DOMContentLoaded", function () {
 
 	var hash = window.location.hash;
@@ -16,10 +11,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	var msg = document.getElementById('msg'),
 		msgList = document.getElementById('msgList'),
-		video = document.getElementById('video'),
-		userMedia = UserMedia();
+		video = document.getElementById('video');
+		
 
-	navigator.webkitGetUserMedia({video: true, audio: true}, function (videoStream) {
+	navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia; 
+	navigator.getUserMedia({video: true, audio: true}, function (videoStream) {
 		video.src = window.URL.createObjectURL(videoStream);
 	}, function failed(){});
 
