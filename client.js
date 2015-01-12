@@ -1,47 +1,35 @@
 var Engine = require('engine.io-stream');
-var videoStream = Engine('/video');
-var roomStream = Engine('/room');
+var videoSocket = Engine('/video');
+var roomSocket = Engine('/room');
 var hat = require('hat');
+var VideoChat = require("./lib/videochat");
 
 document.addEventListener("DOMContentLoaded", main, false);
 
 function main() {
-	roomStream.write("user has joined");
-		
 	var hash = window.location.hash;
-	if (hash === "" || !hash) {
-		hash = hat();
-	}
+	if (hash === "" || !hash) hash = hat();
+	
+	//emit hash id to server first
+	videoSocket.write(hash);
 
-	var video = document.getElementById('video'),
-		videoList = document.getElementById('videoList'),
-		canvas = document.getElementById('capture'),
-		ctx = canvas.getContext('2d');
-		
+	var join = document.getElementById("join");
 
-	navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia; 
-	navigator.getUserMedia({video: true, audio: false/*true*/}, function (videoStream) {
-		video.src = window.URL.createObjectURL(videoStream);
+	join.addEventListener("submit", function (evt) {
+		evt.preventDefault();
 
-	}, function failed(){});
-
-
-	video.addEventListener('timeupdate', function (e) {
-		//hack: convert each frame to image & stream images
-		ctx.drawImage(video, 0, 0);
-
-		videoStream.write(canvas.toDataURL("image/jpeg"));
+		roomSocket.write(JSON.stringify({
+			id: hash,
+			username: evt.target.children[0].value
+		}));
 
 	}, false);
 
-	var cv = document.getElementById("hello");
-	videoStream.on('data', function (data) {
-		var img = new Image();
-		img.src = data;
-
-		ctx2 = cv.getContext('2d');
-		ctx2.drawImage(img, 0, 0);
+	roomSocket.on('data', function (data) {
+		console.log("room ", data);
 	});
 
+	var videochat = VideoChat({socket: videoSocket});
+	videochat.start();
 
 }

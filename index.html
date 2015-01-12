@@ -13,15 +13,28 @@
 	</style>
 </head>
 <body>
-	<h1>Live Chat</h1>
-	
-	<div>
-		<video id="video" autoplay></video>
-	</div>
-	<canvas id="capture"></canvas>
+	<header>
+		<h1>Live Chat</h1>
+		<nav>
+			<form id="join" action="">
+				<input type="text" name="username" placeholder="username" required>
+				<button type="submit">join</button>
+			</form>
+		</nav>
+	</header>
+	<div class="container">
+		
+		<div>
+			<video id="video" autoplay></video>
+		</div>
+		<canvas id="capture"></canvas>
 
-	<ul id="videoList"></ul>
-	<canvas id="hello"></canvas>		
+		<ul id="videoList"></ul>
+		<canvas id="hello"></canvas>		
+	</div>
+	<footer>
+		copyright: mit license
+	</footer>
 
 	<script src="bundle.js"></script>
 </body>

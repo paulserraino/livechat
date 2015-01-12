@@ -1,52 +1,86 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 var Engine = require('engine.io-stream');
-var videoStream = Engine('/video');
-var roomStream = Engine('/room');
+var videoSocket = Engine('/video');
+var roomSocket = Engine('/room');
 var hat = require('hat');
+var VideoChat = require("./lib/videochat");
 
 document.addEventListener("DOMContentLoaded", main, false);
 
 function main() {
-	roomStream.write("user has joined");
-		
 	var hash = window.location.hash;
-	if (hash === "" || !hash) {
-		hash = hat();
-	}
+	if (hash === "" || !hash) hash = hat();
+	
+	//emit hash id to server first
+	videoSocket.write(hash);
 
-	var video = document.getElementById('video'),
-		videoList = document.getElementById('videoList'),
-		canvas = document.getElementById('capture'),
-		ctx = canvas.getContext('2d');
-		
+	var join = document.getElementById("join");
 
-	navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia; 
-	navigator.getUserMedia({video: true, audio: false/*true*/}, function (videoStream) {
-		video.src = window.URL.createObjectURL(videoStream);
+	join.addEventListener("submit", function (evt) {
+		evt.preventDefault();
 
-	}, function failed(){});
-
-
-	video.addEventListener('timeupdate', function (e) {
-		//hack: convert each frame to image & stream images
-		ctx.drawImage(video, 0, 0);
-
-		videoStream.write(canvas.toDataURL("image/jpeg"));
+		roomSocket.write(JSON.stringify({
+			id: hash,
+			username: evt.target.children[0].value
+		}));
 
 	}, false);
 
-	var cv = document.getElementById("hello");
-	videoStream.on('data', function (data) {
-		var img = new Image();
-		img.src = data;
-
-		ctx2 = cv.getContext('2d');
-		ctx2.drawImage(img, 0, 0);
+	roomSocket.on('data', function (data) {
+		console.log("room ", data);
 	});
 
+	var videochat = VideoChat({socket: videoSocket});
+	videochat.start();
 
 }
-},{"engine.io-stream":23,"hat":47}],2:[function(require,module,exports){
+},{"./lib/videochat":2,"engine.io-stream":24,"hat":48}],2:[function(require,module,exports){
+function VideoChat(opts) {
+	if (!(this instanceof VideoChat)) return new VideoChat(opts);
+
+	this.video = document.getElementById('video');
+	this.videoList = document.getElementById('videoList');
+	this.canvas = document.getElementById('capture');
+	this.ctx = this.canvas.getContext('2d');
+
+	this.socket = opts.socket || null;
+};
+
+VideoChat.prototype = {
+	start: function () {
+		this.rtcStream();
+		this.streamVideoData();
+		this.update();
+	},
+	rtcStream: function () {
+		var _this = this;
+		navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia; 
+		navigator.getUserMedia({video: true, audio: false}, function (videoStream) {
+			_this.video.src = window.URL.createObjectURL(videoStream);
+
+		}, function err(){
+			console.log("failed to stream video! :(")
+		});
+	},
+	streamVideoData: function () {
+		var _this = this;
+		video.addEventListener('timeupdate', function (e) {
+			//hack: convert each frame to image & stream images
+			_this.ctx.drawImage(video, 0, 0);
+			_this.socket.write(_this.canvas.toDataURL("image/jpeg"));
+		}, false);
+	},
+	update: function () {
+		this.socket.on('data', function (data) {
+			var img = new Image();
+			img.src = data;
+		});
+	}
+}
+
+module.exports = VideoChat;
+
+},{}],3:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -1364,7 +1398,7 @@ function decodeUtf8Char (str) {
   }
 }
 
-},{"base64-js":3,"ieee754":4,"is-array":5}],3:[function(require,module,exports){
+},{"base64-js":4,"ieee754":5,"is-array":6}],4:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -1490,7 +1524,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 exports.read = function(buffer, offset, isLE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
@@ -1576,7 +1610,7 @@ exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128;
 };
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 
 /**
  * isArray
@@ -1611,7 +1645,7 @@ module.exports = isArray || function (val) {
   return !! val && '[object Array]' == str.call(val);
 };
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -1914,7 +1948,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -1939,12 +1973,12 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -2003,10 +2037,10 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":11}],11:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":12}],12:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -2099,7 +2133,7 @@ function forEach (xs, f) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_readable":13,"./_stream_writable":15,"_process":9,"core-util-is":16,"inherits":7}],12:[function(require,module,exports){
+},{"./_stream_readable":14,"./_stream_writable":16,"_process":10,"core-util-is":17,"inherits":8}],13:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -2147,7 +2181,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":14,"core-util-is":16,"inherits":7}],13:[function(require,module,exports){
+},{"./_stream_transform":15,"core-util-is":17,"inherits":8}],14:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -3133,7 +3167,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"_process":9,"buffer":2,"core-util-is":16,"events":6,"inherits":7,"isarray":8,"stream":21,"string_decoder/":22}],14:[function(require,module,exports){
+},{"_process":10,"buffer":3,"core-util-is":17,"events":7,"inherits":8,"isarray":9,"stream":22,"string_decoder/":23}],15:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3345,7 +3379,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":11,"core-util-is":16,"inherits":7}],15:[function(require,module,exports){
+},{"./_stream_duplex":12,"core-util-is":17,"inherits":8}],16:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -3735,7 +3769,7 @@ function endWritable(stream, state, cb) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":11,"_process":9,"buffer":2,"core-util-is":16,"inherits":7,"stream":21}],16:[function(require,module,exports){
+},{"./_stream_duplex":12,"_process":10,"buffer":3,"core-util-is":17,"inherits":8,"stream":22}],17:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -3845,10 +3879,10 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":2}],17:[function(require,module,exports){
+},{"buffer":3}],18:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":12}],18:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":13}],19:[function(require,module,exports){
 var Stream = require('stream'); // hack to fix a circular dependency issue when used with browserify
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = Stream;
@@ -3858,13 +3892,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":11,"./lib/_stream_passthrough.js":12,"./lib/_stream_readable.js":13,"./lib/_stream_transform.js":14,"./lib/_stream_writable.js":15,"stream":21}],19:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":12,"./lib/_stream_passthrough.js":13,"./lib/_stream_readable.js":14,"./lib/_stream_transform.js":15,"./lib/_stream_writable.js":16,"stream":22}],20:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":14}],20:[function(require,module,exports){
+},{"./lib/_stream_transform.js":15}],21:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":15}],21:[function(require,module,exports){
+},{"./lib/_stream_writable.js":16}],22:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -3993,7 +4027,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":6,"inherits":7,"readable-stream/duplex.js":10,"readable-stream/passthrough.js":17,"readable-stream/readable.js":18,"readable-stream/transform.js":19,"readable-stream/writable.js":20}],22:[function(require,module,exports){
+},{"events":7,"inherits":8,"readable-stream/duplex.js":11,"readable-stream/passthrough.js":18,"readable-stream/readable.js":19,"readable-stream/transform.js":20,"readable-stream/writable.js":21}],23:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -4216,7 +4250,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":2}],23:[function(require,module,exports){
+},{"buffer":3}],24:[function(require,module,exports){
 var EngineSocket = require("engine.io-client").Socket
 
 var EngineStream = require("./eiostream")
@@ -4234,7 +4268,7 @@ function EngineClient(options) {
     return EngineStream(socket)
 }
 
-},{"./eiostream":24,"engine.io-client":25}],24:[function(require,module,exports){
+},{"./eiostream":25,"engine.io-client":26}],25:[function(require,module,exports){
 var Stream = require('stream').Stream;
 
 function EngineStream(socket) {
@@ -4262,11 +4296,11 @@ function EngineStream(socket) {
 module.exports = EngineStream
 
 
-},{"stream":21}],25:[function(require,module,exports){
+},{"stream":22}],26:[function(require,module,exports){
 
 module.exports =  require('./lib/');
 
-},{"./lib/":27}],26:[function(require,module,exports){
+},{"./lib/":28}],27:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -4304,7 +4338,7 @@ Emitter.prototype.removeEventListener = Emitter.prototype.off;
 
 Emitter.prototype.removeListener = Emitter.prototype.off;
 
-},{"emitter":39}],27:[function(require,module,exports){
+},{"emitter":40}],28:[function(require,module,exports){
 
 module.exports = require('./socket');
 
@@ -4316,7 +4350,7 @@ module.exports = require('./socket');
  */
 module.exports.parser = require('engine.io-parser');
 
-},{"./socket":28,"engine.io-parser":40}],28:[function(require,module,exports){
+},{"./socket":29,"engine.io-parser":41}],29:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -4918,7 +4952,7 @@ Socket.prototype.filterUpgrades = function (upgrades) {
   return filteredUpgrades;
 };
 
-},{"./emitter":26,"./transport":29,"./transports":31,"./util":36,"debug":38,"engine.io-parser":40,"global":43,"indexof":45}],29:[function(require,module,exports){
+},{"./emitter":27,"./transport":30,"./transports":32,"./util":37,"debug":39,"engine.io-parser":41,"global":44,"indexof":46}],30:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -5062,7 +5096,7 @@ Transport.prototype.onClose = function () {
   this.emit('close');
 };
 
-},{"./emitter":26,"./util":36,"engine.io-parser":40}],30:[function(require,module,exports){
+},{"./emitter":27,"./util":37,"engine.io-parser":41}],31:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -5324,7 +5358,7 @@ function load (arr, fn) {
   process(0);
 };
 
-},{"../util":36,"./websocket":35,"debug":38,"global":43}],31:[function(require,module,exports){
+},{"../util":37,"./websocket":36,"debug":39,"global":44}],32:[function(require,module,exports){
 
 /**
  * Module dependencies
@@ -5388,7 +5422,7 @@ function polling (opts) {
   }
 };
 
-},{"../util":36,"./flashsocket":30,"./polling-jsonp":32,"./polling-xhr":33,"./websocket":35,"global":43}],32:[function(require,module,exports){
+},{"../util":37,"./flashsocket":31,"./polling-jsonp":33,"./polling-xhr":34,"./websocket":36,"global":44}],33:[function(require,module,exports){
 
 /**
  * Module requirements.
@@ -5622,7 +5656,7 @@ JSONPPolling.prototype.doWrite = function (data, fn) {
   }
 };
 
-},{"../util":36,"./polling":34,"global":43}],33:[function(require,module,exports){
+},{"../util":37,"./polling":35,"global":44}],34:[function(require,module,exports){
 /**
  * Module requirements.
  */
@@ -5935,7 +5969,7 @@ if (xobject) {
   });
 }
 
-},{"../emitter":26,"../util":36,"./polling":34,"debug":38,"global":43}],34:[function(require,module,exports){
+},{"../emitter":27,"../util":37,"./polling":35,"debug":39,"global":44}],35:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -6164,7 +6198,7 @@ Polling.prototype.uri = function(){
   return schema + '://' + this.hostname + port + this.path + query;
 };
 
-},{"../transport":29,"../util":36,"debug":38,"engine.io-parser":40,"global":43}],35:[function(require,module,exports){
+},{"../transport":30,"../util":37,"debug":39,"engine.io-parser":41,"global":44}],36:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -6362,7 +6396,7 @@ WS.prototype.check = function(){
   return !!WebSocket && !('__initialize' in WebSocket && this.name === WS.prototype.name);
 };
 
-},{"../transport":29,"../util":36,"debug":38,"engine.io-parser":40,"global":43,"ws":46}],36:[function(require,module,exports){
+},{"../transport":30,"../util":37,"debug":39,"engine.io-parser":41,"global":44,"ws":47}],37:[function(require,module,exports){
 
 var global = require('global');
 
@@ -6644,7 +6678,7 @@ exports.qsParse = function(qs){
   return qry;
 };
 
-},{"global":43,"has-cors":44,"xmlhttprequest":37}],37:[function(require,module,exports){
+},{"global":44,"has-cors":45,"xmlhttprequest":38}],38:[function(require,module,exports){
 // browser shim for xmlhttprequest module
 var hasCORS = require('has-cors');
 
@@ -6668,7 +6702,7 @@ module.exports = function(opts) {
   }
 }
 
-},{"has-cors":44}],38:[function(require,module,exports){
+},{"has-cors":45}],39:[function(require,module,exports){
 
 /**
  * Expose `debug()` as the module.
@@ -6794,7 +6828,7 @@ debug.enabled = function(name) {
 
 if (window.localStorage) debug.enable(localStorage.debug);
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -6958,11 +6992,11 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-},{"indexof":45}],40:[function(require,module,exports){
+},{"indexof":46}],41:[function(require,module,exports){
 
 module.exports = require('./lib/');
 
-},{"./lib/":41}],41:[function(require,module,exports){
+},{"./lib/":42}],42:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -7131,7 +7165,7 @@ exports.decodePayload = function (data, callback) {
 
 };
 
-},{"./keys":42}],42:[function(require,module,exports){
+},{"./keys":43}],43:[function(require,module,exports){
 
 /**
  * Gets the keys for an object.
@@ -7152,7 +7186,7 @@ module.exports = Object.keys || function keys (obj){
   return arr;
 };
 
-},{}],43:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 
 /**
  * Returns `this`. Execute this without a "context" (i.e. without it being
@@ -7162,7 +7196,7 @@ module.exports = Object.keys || function keys (obj){
 
 module.exports = (function () { return this; })();
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -7181,7 +7215,7 @@ var global = require('global');
 module.exports = 'XMLHttpRequest' in global &&
   'withCredentials' in new global.XMLHttpRequest();
 
-},{"global":43}],45:[function(require,module,exports){
+},{"global":44}],46:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -7192,7 +7226,7 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],46:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -7237,7 +7271,7 @@ function ws(uri, protocols, opts) {
 
 if (WebSocket) ws.prototype = WebSocket.prototype;
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 var hat = module.exports = function (bits, base) {
     if (!base) base = 16;
     if (bits === undefined) bits = 128;
