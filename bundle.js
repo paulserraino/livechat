@@ -1,22 +1,23 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 var Engine = require('engine.io-stream');
-var socket = Engine('/engine');
+var videoStream = Engine('/video');
+var roomStream = Engine('/room');
 var hat = require('hat');
 
 document.addEventListener("DOMContentLoaded", main, false);
 
 function main() {
-
+	roomStream.write("user has joined");
+		
 	var hash = window.location.hash;
 	if (hash === "" || !hash) {
 		hash = hat();
 	}
 
-	var msg = document.getElementById('msg'),
-		msgList = document.getElementById('msgList'),
-		video = document.getElementById('video'),
+	var video = document.getElementById('video'),
 		videoList = document.getElementById('videoList'),
-		canvas = document.getElementById('capture');
+		canvas = document.getElementById('capture'),
+		ctx = canvas.getContext('2d');
 		
 
 	navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia; 
@@ -28,44 +29,23 @@ function main() {
 
 	video.addEventListener('timeupdate', function (e) {
 		//hack: convert each frame to image & stream images
-		var ctx = canvas.getContext('2d');
 		ctx.drawImage(video, 0, 0);
-		
-		//Uint8ClampedArray data type
-		socket.write(JSON.stringify({
-			type: "video",
-			data: ctx.getImageData(0, 0, 320, 240)
-		}));
+
+		videoStream.write(canvas.toDataURL("image/jpeg"));
 
 	}, false);
 
+	var cv = document.getElementById("hello");
+	videoStream.on('data', function (data) {
+		var img = new Image();
+		img.src = data;
 
-	msg.addEventListener("keyup", function (evt) {
-		if (evt.keyCode === 13 && evt.target.value) {
-			socket.write(JSON.stringify({
-				type: "text",
-				id: hash,
-				message: evt.target.value
-			}));
-			evt.target.value = null;
-		}
-	}, false);
-
-	socket.on('data', function (data) {
-		var d = data;
-		var li = document.createElement('li');
-
-		if (typeof data === "string") d = JSON.parse(d);
-		if (d.type === "text") {
-			li.appendChild(document.createTextNode(d.message));
-			msgList.appendChild(li);
-
-		} else if (d.type === "video") {
-			console.log('video data ', d)
-		}
+		ctx2 = cv.getContext('2d');
+		ctx2.drawImage(img, 0, 0);
 	});
-}
 
+
+}
 },{"engine.io-stream":23,"hat":47}],2:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.

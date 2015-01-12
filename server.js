@@ -14,22 +14,30 @@ browserify.add('./client.js')
 browserify.bundle().pipe(fs.createWriteStream(__dirname+'/bundle.js'));
 
 var clients = [];
+var users = [];
 function broadcast (data) {
 	for(var i=0; i < clients.length; i++) {
 		clients[i].write(data);
 	}
 }
 
-var engine = Engine(function (socket) {
+var vidEngine = Engine(function (socket) {
 
 	clients.push(socket);
 
 	socket.on('data', function (data) {
-		console.log('client says: ', data);
 		broadcast(data);
 	})
 
 });
 
-engine.attach(httpServer, "/engine");
+var roomEngine = Engine(function (socket) {
+	users.push(socket);
+	socket.on('data', function (data) {
+		console.log('client says: ', data);
+	})
+});
+
+vidEngine.attach(httpServer, "/video");
+roomEngine.attach(httpServer, "/room");
 

@@ -4,8 +4,7 @@
 	<meta charset="UTF-8">
 	<title>Live Chat</title>
 	<style>
-	#video
-	{
+	#video, canvas {
 		max-width: 500px;
 	    transform: rotateY(180deg);
 	    -webkit-transform:rotateY(180deg); 
@@ -21,13 +20,8 @@
 	</div>
 	<canvas id="capture"></canvas>
 
-	<ul id="videoList"></ul>		
-
-	<div>
-		<input type="text" id="msg" placeholder="say something...">
-	</div>
-
-	<ul id="msgList"></ul>
+	<ul id="videoList"></ul>
+	<canvas id="hello"></canvas>		
 
 	<script src="bundle.js"></script>
 </body>
