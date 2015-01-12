@@ -14,5 +14,9 @@
     "hat": "0.0.3",
     "ecstatic": "~0.5.8",
     "engine.io-stream": "~0.4.3"
+  },
+   "engines": {
+    "node": "0.10.x",
+    "npm": "1.3.8"
   }
 }
