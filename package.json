@@ -10,12 +10,18 @@
   "author": "Paul Serraino",
   "license": "MIT",
   "dependencies": {
-    "browserify": "~8.1.0",
     "hat": "0.0.3",
     "ecstatic": "~0.5.8",
     "engine.io-stream": "~0.4.3"
   },
-   "engines": {
+  "devDependencies": {
+    "browserify": "~8.1.0",
+    "gulp": "~3.8.10",
+    "watchify": "~0.6.4",
+    "gulp-watch": "~3.0.0",
+    "vinyl-source-stream": "~1.0.0"
+  },
+  "engines": {
     "node": "0.10.x",
     "npm": "1.3.8"
   }

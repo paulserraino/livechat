@@ -6,12 +6,7 @@ var Engine = require('engine.io-stream');
 var httpServer = http.createServer(ecstatic({
 	root: __dirname
 })).listen(8080);
-
 console.log("listening on port 8080");
-
-var browserify = require('browserify')();
-browserify.add('./client.js')
-browserify.bundle().pipe(fs.createWriteStream(__dirname+'/bundle.js'));
 
 var clients = [];
 var userTable = {};
