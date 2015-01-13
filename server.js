@@ -15,12 +15,10 @@ browserify.bundle().pipe(fs.createWriteStream(__dirname+'/bundle.js'));
 
 var clients = [];
 var userTable = {};
-function broadcast (data) {
-	for(var i=0; i < clients.length; i++) {
-		clients[i].socket.write(data);
-	}
-}
 
+/*
+*	Video WebSocket
+*/
 var vidEngine = Engine(function (socket) {
 
 	socket.once("data", function (data) {
@@ -32,11 +30,23 @@ var vidEngine = Engine(function (socket) {
 	})
 
 	socket.on('data', function (data) {
-		broadcast(data);
-	})
+		for (var i=0; i < clients.length; i++) {
+			var o = { id: clients[i].id, data: data };
+			clients[i].socket.write(JSON.stringify(o));
+		}
+	});
+
+	socket.on('end', function () {
+		var i = clients.indexOf(clients);
+		clients.splice(i, 1);
+	});
 
 });
 
+
+/*
+*	Room WebSockets
+*/
 var roomEngine = Engine(function (socket) {
 	console.log("socket user");
 	socket.on('data', function (data) {
