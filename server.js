@@ -25,8 +25,9 @@ var vidEngine = Engine(function (socket) {
 	})
 
 	socket.on('data', function (data) {
+		var o = {};
 		for (var i=0; i < clients.length; i++) {
-			var o = { id: clients[i].id, data: data };
+			o[clients[i].id] = data;
 			clients[i].socket.write(JSON.stringify(o));
 		}
 	});
