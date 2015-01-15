@@ -12,7 +12,8 @@
   "dependencies": {
     "hat": "0.0.3",
     "ecstatic": "~0.5.8",
-    "engine.io-stream": "~0.4.3"
+    "engine.io-stream": "~0.4.3",
+    "through2": "~0.6.3"
   },
   "devDependencies": {
     "browserify": "~8.1.0",

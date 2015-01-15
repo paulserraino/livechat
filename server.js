@@ -25,10 +25,10 @@ var vidEngine = Engine(function (socket) {
 	})
 
 	socket.on('data', function (data) {
-		var o = {};
+		var obj = {};
 		for (var i=0; i < clients.length; i++) {
-			o[clients[i].id] = data;
-			clients[i].socket.write(JSON.stringify(o));
+			obj[clients[i].id] = data;
+			clients[i].socket.write(JSON.stringify(obj));
 		}
 	});
 

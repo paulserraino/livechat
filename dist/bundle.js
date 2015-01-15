@@ -22,7 +22,7 @@ function main() {
 
 document.addEventListener("DOMContentLoaded", main, false);
 
-},{"./ChatRoom":2,"./videochat":4,"engine.io-stream":26,"hat":50}],2:[function(require,module,exports){
+},{"./ChatRoom":2,"./videochat":4,"engine.io-stream":28,"hat":52}],2:[function(require,module,exports){
 var hat = require("hat");
 
 function ChatRoom (opts) {
@@ -64,30 +64,28 @@ ChatRoom.prototype = {
 
 module.exports = ChatRoom;
 
-},{"hat":50}],3:[function(require,module,exports){
+},{"hat":52}],3:[function(require,module,exports){
 module.exports = {
 	extends: function (obj) {
+		if (typeof obj !== "object") return obj;
 		var arr = Array.prototype.slice.call(arguments, 1);
-		if (Object.keys(obj).length === 0) {
-			arr.forEach(function (arg) {
-				for (var j in arg) {
-					obj[j] = arg[j]
-				}
-			});
-		} else {
-			arr.forEach(function (arg) {
-				for (var k in obj) {
-					for (var j in arg) {
-						obj[j] = arg[j];
-					}
-				}
-			});
-		}
+		arr.forEach(function (arg) {
+			for (var k in arg) {
+				obj[k] = arg[k];
+			}
+		});
+		
 		return obj;
+	},
+	size: function (obj) {
+		var k, c = 0;
+		for (k in obj) { c+= 1; }
+		return c;
 	}
 };
 },{}],4:[function(require,module,exports){
 var utils = require('./utils');
+var through = require('through2');
 
 function VideoChat(opts) {
 	if (!(this instanceof VideoChat)) return new VideoChat(opts);
@@ -105,7 +103,7 @@ VideoChat.prototype = {
 	start: function () {
 		this.rtcStream();
 		this.streamVideoData();
-		this.updateFeed();
+		this.startVideoFeed();
 	},
 	rtcStream: function () {
 		var _this = this;
@@ -125,25 +123,55 @@ VideoChat.prototype = {
 			_this.socket.write(_this.canvas.toDataURL("image/jpeg"));
 		}, false);
 	},
-	updateFeed: function () {
-		var testVid = document.getElementById("test-video");
-		var ctx2 = testVid.getContext("2d");
-		this.socket.on('data', function (data) {
-			data = JSON.parse(data);
-			this.socketTable = utils.extends(this.socketTable, data);
-			console.log(this.socketTable)
-			for (var k in this.socketTable) {
-				var img = new Image();
-				img.src = this.socketTable[k];
-				ctx2.drawImage(img, 0, 0);
+	startVideoFeed: function () {
+		this.socket.pipe(through(function (buf, enc, cb) {
+			var d = buf.toString();
+			d = JSON.parse(d);
+			console.log(Object.keys(d));
+			cb();
+		}))
+		.on('data', function (vidData) {
+			vidData = JSON.parse(vidData);
+
+			var id = Object.keys(vidData)[0];
+			if (!(id in this.socketTable)) {
+				this.updateSocketTable(id, vidData[id]);
+				this.updateVideoList();
+				console.log(this.socketTable);
 			}
+
+			for (var k in this.socketTable) {
+				if (id === k) {
+					var img = new Image();
+					img.src = vidData[id];
+					this.socketTable[id].ctx.drawImage(img, 0, 0);
+				}
+			}
+
 		}.bind(this));
+	},
+	updateSocketTable: function (id, socketData) {
+		var obj = {};
+		var canvas = document.createElement("canvas"),
+			ctx = canvas.getContext("2d"),
+			meta = { canvas: canvas, ctx: ctx, data: socketData };
+
+		obj[id] = meta;
+		this.socketTable = utils.extends(this.socketTable, obj);
+	},
+	updateVideoList: function () {
+		this.videoList.innerHtml = "";
+		for (var k in this.socketTable) {
+			var li = document.createElement("li");
+			li.appendChild(this.socketTable[k].canvas);
+			this.videoList.appendChild(li);
+		}
 	}
 }
 
 module.exports = VideoChat;
 
-},{"./utils":3}],5:[function(require,module,exports){
+},{"./utils":3,"through2":63}],5:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -4314,6 +4342,603 @@ function base64DetectIncompleteChar(buffer) {
 }
 
 },{"buffer":5}],26:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],27:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":26,"_process":12,"inherits":10}],28:[function(require,module,exports){
 var EngineSocket = require("engine.io-client").Socket
 
 var EngineStream = require("./eiostream")
@@ -4331,7 +4956,7 @@ function EngineClient(options) {
     return EngineStream(socket)
 }
 
-},{"./eiostream":27,"engine.io-client":28}],27:[function(require,module,exports){
+},{"./eiostream":29,"engine.io-client":30}],29:[function(require,module,exports){
 var Stream = require('stream').Stream;
 
 function EngineStream(socket) {
@@ -4359,11 +4984,11 @@ function EngineStream(socket) {
 module.exports = EngineStream
 
 
-},{"stream":24}],28:[function(require,module,exports){
+},{"stream":24}],30:[function(require,module,exports){
 
 module.exports =  require('./lib/');
 
-},{"./lib/":30}],29:[function(require,module,exports){
+},{"./lib/":32}],31:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -4401,7 +5026,7 @@ Emitter.prototype.removeEventListener = Emitter.prototype.off;
 
 Emitter.prototype.removeListener = Emitter.prototype.off;
 
-},{"emitter":42}],30:[function(require,module,exports){
+},{"emitter":44}],32:[function(require,module,exports){
 
 module.exports = require('./socket');
 
@@ -4413,7 +5038,7 @@ module.exports = require('./socket');
  */
 module.exports.parser = require('engine.io-parser');
 
-},{"./socket":31,"engine.io-parser":43}],31:[function(require,module,exports){
+},{"./socket":33,"engine.io-parser":45}],33:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -5015,7 +5640,7 @@ Socket.prototype.filterUpgrades = function (upgrades) {
   return filteredUpgrades;
 };
 
-},{"./emitter":29,"./transport":32,"./transports":34,"./util":39,"debug":41,"engine.io-parser":43,"global":46,"indexof":48}],32:[function(require,module,exports){
+},{"./emitter":31,"./transport":34,"./transports":36,"./util":41,"debug":43,"engine.io-parser":45,"global":48,"indexof":50}],34:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -5159,7 +5784,7 @@ Transport.prototype.onClose = function () {
   this.emit('close');
 };
 
-},{"./emitter":29,"./util":39,"engine.io-parser":43}],33:[function(require,module,exports){
+},{"./emitter":31,"./util":41,"engine.io-parser":45}],35:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -5421,7 +6046,7 @@ function load (arr, fn) {
   process(0);
 };
 
-},{"../util":39,"./websocket":38,"debug":41,"global":46}],34:[function(require,module,exports){
+},{"../util":41,"./websocket":40,"debug":43,"global":48}],36:[function(require,module,exports){
 
 /**
  * Module dependencies
@@ -5485,7 +6110,7 @@ function polling (opts) {
   }
 };
 
-},{"../util":39,"./flashsocket":33,"./polling-jsonp":35,"./polling-xhr":36,"./websocket":38,"global":46}],35:[function(require,module,exports){
+},{"../util":41,"./flashsocket":35,"./polling-jsonp":37,"./polling-xhr":38,"./websocket":40,"global":48}],37:[function(require,module,exports){
 
 /**
  * Module requirements.
@@ -5719,7 +6344,7 @@ JSONPPolling.prototype.doWrite = function (data, fn) {
   }
 };
 
-},{"../util":39,"./polling":37,"global":46}],36:[function(require,module,exports){
+},{"../util":41,"./polling":39,"global":48}],38:[function(require,module,exports){
 /**
  * Module requirements.
  */
@@ -6032,7 +6657,7 @@ if (xobject) {
   });
 }
 
-},{"../emitter":29,"../util":39,"./polling":37,"debug":41,"global":46}],37:[function(require,module,exports){
+},{"../emitter":31,"../util":41,"./polling":39,"debug":43,"global":48}],39:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -6261,7 +6886,7 @@ Polling.prototype.uri = function(){
   return schema + '://' + this.hostname + port + this.path + query;
 };
 
-},{"../transport":32,"../util":39,"debug":41,"engine.io-parser":43,"global":46}],38:[function(require,module,exports){
+},{"../transport":34,"../util":41,"debug":43,"engine.io-parser":45,"global":48}],40:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -6459,7 +7084,7 @@ WS.prototype.check = function(){
   return !!WebSocket && !('__initialize' in WebSocket && this.name === WS.prototype.name);
 };
 
-},{"../transport":32,"../util":39,"debug":41,"engine.io-parser":43,"global":46,"ws":49}],39:[function(require,module,exports){
+},{"../transport":34,"../util":41,"debug":43,"engine.io-parser":45,"global":48,"ws":51}],41:[function(require,module,exports){
 
 var global = require('global');
 
@@ -6741,7 +7366,7 @@ exports.qsParse = function(qs){
   return qry;
 };
 
-},{"global":46,"has-cors":47,"xmlhttprequest":40}],40:[function(require,module,exports){
+},{"global":48,"has-cors":49,"xmlhttprequest":42}],42:[function(require,module,exports){
 // browser shim for xmlhttprequest module
 var hasCORS = require('has-cors');
 
@@ -6765,7 +7390,7 @@ module.exports = function(opts) {
   }
 }
 
-},{"has-cors":47}],41:[function(require,module,exports){
+},{"has-cors":49}],43:[function(require,module,exports){
 
 /**
  * Expose `debug()` as the module.
@@ -6891,7 +7516,7 @@ debug.enabled = function(name) {
 
 if (window.localStorage) debug.enable(localStorage.debug);
 
-},{}],42:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -7055,11 +7680,11 @@ Emitter.prototype.hasListeners = function(event){
   return !! this.listeners(event).length;
 };
 
-},{"indexof":48}],43:[function(require,module,exports){
+},{"indexof":50}],45:[function(require,module,exports){
 
 module.exports = require('./lib/');
 
-},{"./lib/":44}],44:[function(require,module,exports){
+},{"./lib/":46}],46:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -7228,7 +7853,7 @@ exports.decodePayload = function (data, callback) {
 
 };
 
-},{"./keys":45}],45:[function(require,module,exports){
+},{"./keys":47}],47:[function(require,module,exports){
 
 /**
  * Gets the keys for an object.
@@ -7249,7 +7874,7 @@ module.exports = Object.keys || function keys (obj){
   return arr;
 };
 
-},{}],46:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 
 /**
  * Returns `this`. Execute this without a "context" (i.e. without it being
@@ -7259,7 +7884,7 @@ module.exports = Object.keys || function keys (obj){
 
 module.exports = (function () { return this; })();
 
-},{}],47:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -7278,7 +7903,7 @@ var global = require('global');
 module.exports = 'XMLHttpRequest' in global &&
   'withCredentials' in new global.XMLHttpRequest();
 
-},{"global":46}],48:[function(require,module,exports){
+},{"global":48}],50:[function(require,module,exports){
 
 var indexOf = [].indexOf;
 
@@ -7289,7 +7914,7 @@ module.exports = function(arr, obj){
   }
   return -1;
 };
-},{}],49:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -7334,7 +7959,7 @@ function ws(uri, protocols, opts) {
 
 if (WebSocket) ws.prototype = WebSocket.prototype;
 
-},{}],50:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 var hat = module.exports = function (bits, base) {
     if (!base) base = 16;
     if (bits === undefined) bits = 128;
@@ -7398,4 +8023,141 @@ hat.rack = function (bits, base, expandBy) {
     return fn;
 };
 
-},{}]},{},[1]);
+},{}],53:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"./_stream_readable":54,"./_stream_writable":56,"_process":12,"core-util-is":57,"dup":14,"inherits":58}],54:[function(require,module,exports){
+arguments[4][16][0].apply(exports,arguments)
+},{"_process":12,"buffer":5,"core-util-is":57,"dup":16,"events":9,"inherits":58,"isarray":59,"stream":24,"string_decoder/":60}],55:[function(require,module,exports){
+arguments[4][17][0].apply(exports,arguments)
+},{"./_stream_duplex":53,"core-util-is":57,"dup":17,"inherits":58}],56:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"./_stream_duplex":53,"_process":12,"buffer":5,"core-util-is":57,"dup":18,"inherits":58,"stream":24}],57:[function(require,module,exports){
+arguments[4][19][0].apply(exports,arguments)
+},{"buffer":5,"dup":19}],58:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],59:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],60:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"buffer":5,"dup":25}],61:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"./lib/_stream_transform.js":55,"dup":22}],62:[function(require,module,exports){
+module.exports = extend
+
+function extend() {
+    var target = {}
+
+    for (var i = 0; i < arguments.length; i++) {
+        var source = arguments[i]
+
+        for (var key in source) {
+            if (source.hasOwnProperty(key)) {
+                target[key] = source[key]
+            }
+        }
+    }
+
+    return target
+}
+
+},{}],63:[function(require,module,exports){
+(function (process){
+var Transform = require('readable-stream/transform')
+  , inherits  = require('util').inherits
+  , xtend     = require('xtend')
+
+function DestroyableTransform(opts) {
+  Transform.call(this, opts)
+  this._destroyed = false
+}
+
+inherits(DestroyableTransform, Transform)
+
+DestroyableTransform.prototype.destroy = function(err) {
+  if (this._destroyed) return
+  this._destroyed = true
+  
+  var self = this
+  process.nextTick(function() {
+    if (err)
+      self.emit('error', err)
+    self.emit('close')
+  })
+}
+
+// a noop _transform function
+function noop (chunk, enc, callback) {
+  callback(null, chunk)
+}
+
+
+// create a new export function, used by both the main export and
+// the .ctor export, contains common logic for dealing with arguments
+function through2 (construct) {
+  return function (options, transform, flush) {
+    if (typeof options == 'function') {
+      flush     = transform
+      transform = options
+      options   = {}
+    }
+
+    if (typeof transform != 'function')
+      transform = noop
+
+    if (typeof flush != 'function')
+      flush = null
+
+    return construct(options, transform, flush)
+  }
+}
+
+
+// main export, just make me a transform stream!
+module.exports = through2(function (options, transform, flush) {
+  var t2 = new DestroyableTransform(options)
+
+  t2._transform = transform
+
+  if (flush)
+    t2._flush = flush
+
+  return t2
+})
+
+
+// make me a reusable prototype that I can `new`, or implicitly `new`
+// with a constructor call
+module.exports.ctor = through2(function (options, transform, flush) {
+  function Through2 (override) {
+    if (!(this instanceof Through2))
+      return new Through2(override)
+
+    this.options = xtend(options, override)
+
+    DestroyableTransform.call(this, this.options)
+  }
+
+  inherits(Through2, DestroyableTransform)
+
+  Through2.prototype._transform = transform
+
+  if (flush)
+    Through2.prototype._flush = flush
+
+  return Through2
+})
+
+
+module.exports.obj = through2(function (options, transform, flush) {
+  var t2 = new DestroyableTransform(xtend({ objectMode: true, highWaterMark: 16 }, options))
+
+  t2._transform = transform
+
+  if (flush)
+    t2._flush = flush
+
+  return t2
+})
+
+}).call(this,require('_process'))
+},{"_process":12,"readable-stream/transform":61,"util":27,"xtend":62}]},{},[1]);
